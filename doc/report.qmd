@@ -1,0 +1,222 @@
+---
+title: "Half-life time of NICD from WB"
+author:
+  - name: Marek Gierlinski
+    affiliations: Data Analysis Group
+    note: "Creator of this report"
+  - name: Hedda Meijer
+    affiliations: CDB
+date: today
+date-format: "D MMMM YYYY"
+execute:
+  echo: false
+  cache: true
+  warning: false
+format:
+  html:
+    theme:
+      - journal
+      - report.scss
+    toc: true
+    number-sections: true
+self-contained: true
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+#| label: libraries
+#| cache: false
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(purrr)
+  library(stringr)
+  library(forcats)
+  library(targets)
+  library(gt)
+  library(cowplot)
+})
+tar_config_set(store = "../_targets")
+```
+
+
+```{r}
+#| label: functions
+N <- function(n) {
+  prettyNum(n, big.mark = ",")
+}
+
+gt_table <- function(s) {
+  s |> 
+    gt::gt() |> 
+    gt::tab_options(
+      table.align = "center",
+      heading.align = "center",
+      data_row.padding = gt::px(3)
+    ) |> 
+    gt::opt_table_font(
+      font = c(
+        gt::default_fonts()
+      )
+    )
+} 
+```
+
+# Proposal
+
+We have Western Blots for Notch Intracellular Domain (NICD), with GAPDH used for loading control, at 6 time points, in 3 biological and 2-3 technical replicates, in WT and S2513A mutant. The samples were treated with LY (Gamma-secretase inhibitor) for 0-8 hours to stop production of NICD. There are three cell lines.
+
+We want to find half-life times.
+
+Preliminary analysis shows that after 4 hrs not much happens to WT protein levels (for WT the WB shows very little signal from 4-8 hrs).
+Note, I also included data for a third cell line (Wibj2) from a separate experiment in case you have a different way to calculate half-life, please also apply this method to this dataset.
+ 
+Questions: 
+At which timepoints are the protein levels different for WT v. S2513?
+Is the half-life different for WT and S2513A?
+Can you please provide a short method section on the analysis? I only need a (few) sentence(s).
+
+# Data
+
+@fig-dat shows all data, presented as log~2~ of normalised intensity, together with best-fitting straight lines fitted to time points 0 - 4h (see below for explanation).
+
+```{r}
+#| label: fig-dat
+#| fig-cap: Time course of all data. The short horizontal lines show the mean of each sample. The straight line represent the best-fitting linear model, fitted to time points 0, 1, 2 and 4^h^ only.
+#| fig-width: 8
+#| fig-height: 10
+tar_read(fig_dat) 
+```
+
+# ANOVA and Tukey post hoc
+
+@fig-dat suggests that the Western Blot hit its sensitivity limits at about 4^h^. In S2513A and WT, the intensity flattens and in WIBJ2, there are data points missing. To assess if the exponential decay really hit a flat bottom, we perform a ANOVA followed by a post-hoc Tukey test, which is a series of pairwise t-tests corrected for multiple tests. This is done in each condition separately. The results are summarised in @fig-tukey. None of the pairs at time points 4, 6 and 8^h^ are significantly different. We conclude that the intensity after 4^h^ did not change and use only time points 0 - 4^h^ for linear regression.
+
+```{r}
+#| label: fig-tukey
+#| fig-cap: Results of the Tukey post-hoc test on pairwise comparison between time points. The fill colour (diff) shows the difference between the two time points, in log~2~ scale. "x" indicates statistically significant difference at p < 0.05 level. We can see that there is no statistically significant difference between time points 4, 6 and 8^h^.
+#| fig-width: 8
+#| fig-height: 3
+tar_read(fig_tukey)
+```
+
+# Half life
+
+@tbl-half shows the half life time for each condition, derived from the linear fits, together with propagated standard errors.
+
+```{r}
+#| label: tbl-half
+#| tbl-cap: Half life times from fitting linear regression to time points 0, 1, 2, 4^h^. Errors are standard errors.
+tar_read(half) |> 
+  mutate(
+    `Half life (h)` = paste0(
+      formatC(signif(t_half, digits = 2)),
+      "±",
+      formatC(signif(std_t_half, digits = 1))
+    )
+  ) |> 
+  select(condition, `Half life (h)`) |> 
+  gt()
+```
+
+# Comparison between conditions
+
+Below, we compare WT with the two conditions at each time points separately, using a t-test anc correcting the results for multiple testing (Benjamini-Hochberg).
+
+## Comparison between WT and S2513A
+
+
+```{r}
+#| label: fig-cmp-wt-s2513a
+#| fig-cap: Results of the t-test comparison at each time point between WT and S2513A. Points and error bars represent the difference and the standard error between the two conditions, respectively. Black points and lines indicate statistically significant results (FDR < 0.05).
+#| fig-width: 6
+#| fig-height: 4
+tar_read(fig_wt_s2513a)
+```
+
+
+## Comparison between WT and WIBJ2
+
+
+```{r}
+#| label: fig-cmp-wt-wibj2
+#| fig-cap: Results of the t-test comparison at each time point between WT and WIBJ2. Points and error bars represent the difference and the standard error between the two conditions, respectively. Black points and lines indicate statistically significant results (FDR < 0.05).
+#| fig-width: 6
+#| fig-height: 4
+tar_read(fig_wt_wibj2)
+```
+
+
+# Methods
+
+Western blot (WB) normalised intensities were log~2~ transformed. Time course plots indicated no signal change after 4^h^, likely caused by reaching detection limits of the WB. This was confirmed by ANOVA and post-hoc Tukey test for each cell line, showing no statistically significant difference (at FDR limit of 0.05) between time points 4^h^, 6^h^ and 8^h^. Therefore, only time points 0^h^-4^h^ were used for half-life calculations. To estimate half-lives, linear regression analyses were performed separately for each cell line using log~2~-transformed intensities, with regression lines constrained to pass through the origin (intercept = 0). Half-lives were calculated from the slopes of these regression lines, and standard errors were propagated accordingly. Additionally, log~2~-transformed intensities were compared between the WT and each of the two cell lines using a t-test, with p-values adjusted for multiple testing using the Benjamini-Hochberg method.
+
+
+# Resources {#sec-resources}
+
+
+## Code
+
+-   [R code in GitHub](https://github.com/bartongroup/MG_NICDhalf)
+
+# Session info {#sec-session-info}
+
+```{r}
+#| label: session-info
+#| cache: false
+targets::tar_load(session_info)
+```
+
+```{r}
+#| label: gt_session
+gt_session <- function(s) {
+  s |> 
+    gt::gt() |> 
+    gt::tab_options(
+      table.align = "left",
+      data_row.padding = gt::px(3)
+    )
+#    gt::opt_table_font(
+#      font = c(
+#        gt::google_font(name = "Roboto Mono"),
+#        gt::default_fonts()
+#      )
+#    )
+}
+```
+
+### Platform
+
+```{r}
+#| label: session-info-platform
+#| cache: false
+session_info$platform |>
+  unlist() |>
+  tibble::as_tibble(rownames = "Setting") |> 
+  dplyr::rename(Value = value) |> 
+  gt_session() |> 
+  gt::cols_width(
+    Setting ~ gt::px(150)
+  )
+```
+
+### Packages
+
+```{r}
+#| label: session-info-packages
+#| cache: false
+session_info$packages |>
+  tibble::as_tibble() |>
+  dplyr::filter(attached == TRUE) |> 
+  dplyr::select(Package = package, Version = loadedversion, Date = date, Source = source) |> 
+  gt_session() |> 
+  gt::cols_width(
+    Package ~ gt::px(150),
+    Version ~ gt::px(80),
+    Date ~ gt::px(150),
+    Source ~ gt::px(400)
+  )
+```

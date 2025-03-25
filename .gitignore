@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.htaccess
+_targets/
+.DS_Store
+Rplots.pdf
+tab/
+doc/*
+!doc/*.qmd
+!doc/_targets.yaml
+!doc/report.scss
+fig/
