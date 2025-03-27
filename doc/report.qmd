@@ -81,19 +81,19 @@ Can you please provide a short method section on the analysis? I only need a (fe
 
 # Data
 
-@fig-dat shows all data, presented as log~2~ of normalised intensity, together with best-fitting straight lines fitted to time points 0 - 4h (see below for explanation).
+@fig-dat-lin shows all data, presented as log~2~ of normalised intensity, together with best-fitting straight lines fitted to time points 0 - 4h (see below for explanation).
 
 ```{r}
-#| label: fig-dat
+#| label: fig-dat-lin
 #| fig-cap: Time course of all data. The short horizontal lines show the mean of each sample. The straight line represent the best-fitting linear model, fitted to time points 0, 1, 2 and 4^h^ only.
 #| fig-width: 8
 #| fig-height: 10
-tar_read(fig_dat) 
+tar_read(fig_dat_lin) 
 ```
 
 # ANOVA and Tukey post hoc
 
-@fig-dat suggests that the Western Blot hit its sensitivity limits at about 4^h^. In S2513A and WT, the intensity flattens and in WIBJ2, there are data points missing. To assess if the exponential decay really hit a flat bottom, we perform a ANOVA followed by a post-hoc Tukey test, which is a series of pairwise t-tests corrected for multiple tests. This is done in each condition separately. The results are summarised in @fig-tukey. None of the pairs at time points 4, 6 and 8^h^ are significantly different. We conclude that the intensity after 4^h^ did not change and use only time points 0 - 4^h^ for linear regression.
+@fig-dat-lin suggests that the Western Blot hit its sensitivity limits at about 4^h^. In S2513A and WT, the intensity flattens and in WIBJ2, there are data points missing. To assess if the exponential decay really hit a flat bottom, we perform a ANOVA followed by a post-hoc Tukey test, which is a series of pairwise t-tests corrected for multiple tests. This is done in each condition separately. The results are summarised in @fig-tukey. None of the pairs at time points 4, 6 and 8^h^ are significantly different. We conclude that the intensity after 4^h^ did not change and use only time points 0 - 4^h^ for linear regression.
 
 ```{r}
 #| label: fig-tukey
@@ -105,12 +105,14 @@ tar_read(fig_tukey)
 
 # Half life
 
-@tbl-half shows the half life time for each condition, derived from the linear fits, together with propagated standard errors.
+## straight line model
+
+@tbl-half-lin shows the half life time for each condition, derived from the linear fits, together with propagated standard errors.
 
 ```{r}
-#| label: tbl-half
+#| label: tbl-half-lin
 #| tbl-cap: Half life times from fitting linear regression to time points 0, 1, 2, 4^h^. Errors are standard errors.
-tar_read(half) |> 
+tar_read(lin) |> 
   mutate(
     `Half life (h)` = paste0(
       formatC(signif(t_half, digits = 2)),
@@ -119,6 +121,48 @@ tar_read(half) |>
     )
   ) |> 
   select(condition, `Half life (h)`) |> 
+  gt()
+```
+
+## Exponential model with background
+
+Now we take time points 4 - 8^h^ into account and include a background term in our model:
+
+$$
+y(t) = e^{-k t} + b
+$$
+
+Here $b$ represents a constant background, perhaps due to LY treatment not being perfect.
+
+We fit this model to the original normalised data (without log-transformation), to all time points. The best fitting curves are shown in @fig-dat-exp and the best-fitting parameters, including the derived half-live are shown in @tbl-half-exp.
+
+```{r}
+#| label: fig-dat-exp
+#| fig-cap: Time course of all data. The short horizontal lines show the mean of each sample. The curves represent the best-fitting exponential model with background.
+#| fig-width: 8
+#| fig-height: 10
+tar_read(fig_dat_exp) 
+```
+
+
+```{r}
+#| label: tbl-half-exp
+#| tbl-cap: Half-life times from fitting exponential model with background. Only the exponential term was used to derive the half-life. Errors are standard errors.
+str_err <- function(x, std_x) {
+  paste0(
+      formatC(signif(x, digits = 2)),
+      "±",
+      formatC(signif(std_x, digits = 1))
+    )
+}
+
+tar_read(mdl_half) |> 
+  mutate(
+    `k (1/h)` = str_err(k, std_k),
+    b = str_err(b, std_b),
+    `Half life (h)` = str_err(t_half, std_t_half),
+  ) |> 
+  select(condition, `k (1/h)`, b, `Half life (h)`) |> 
   gt()
 ```
 
@@ -137,6 +181,37 @@ Below, we compare WT with the two conditions at each time points separately, usi
 tar_read(fig_wt_s2513a)
 ```
 
+```{r}
+#| label: gt-func
+gt_dif <- function(d) {
+  d |> 
+  gt() |> 
+  fmt_number(
+    columns = 2,
+    n_sigfig = 2
+  ) |> 
+  fmt_scientific(
+    columns = 3,
+    rows = `Adj. p-value` < 0.01,
+    n_sigfig = 2
+  ) |> 
+  fmt_number(
+    columns = 3,
+    rows = `Adj. p-value` > 0.01,
+    n_sigfig = 2
+  )
+}
+```
+
+
+```{r}
+#| label: tbl-cmp-wt-s2513a
+#| tbl-cap: Statistical test results for comparison between WT and S2513A.
+tar_read(cmp_wt_s2513a) |> 
+  select(`Time (h)` = time_point, Difference = estimate, `Adj. p-value` = p_adj) |> 
+  gt_dif()
+```
+
 
 ## Comparison between WT and WIBJ2
 
@@ -147,6 +222,15 @@ tar_read(fig_wt_s2513a)
 #| fig-width: 6
 #| fig-height: 4
 tar_read(fig_wt_wibj2)
+```
+
+
+```{r}
+#| label: tbl-cmp-wt-wibj2
+#| tbl-cap: Statistical test results for comparison between WT and WIBJ2.
+tar_read(cmp_wt_wibj2) |> 
+  select(`Time (h)` = time_point, Difference = estimate, `Adj. p-value` = p_adj) |> 
+  gt_dif()
 ```
 
 
