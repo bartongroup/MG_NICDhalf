@@ -83,13 +83,19 @@ fit_halflife <- function(dat, time_sel = NULL) {
     )
 }
 
+fit_exp <- function(dat, time_sel = c(0, 1, 2, 4)) {
+  if(is.null(time_sel)) {
+    d <- dat
+  } else {
+    d <- dat |> 
+      filter(time_point %in% time_sel)
+  }
 
-fit_exp <- function(dat) {
-  dat |> 
+  d |> 
     select(time_point, condition, value) |> 
     nest(data = c(time_point, value)) |> 
     mutate(
-      fit = map(data, ~nls(value ~ exp(-k * time_point) + b, data = .x, start = list(k = 0.4, b = 0.1))),
+      fit = map(data, ~nls(value ~ exp(-k * time_point), data = .x, start = list(k = 0.4))),
       tidied = map(fit, tidy)
     ) |> 
     select(-c(data)) |> 
@@ -97,6 +103,29 @@ fit_exp <- function(dat) {
 }
 
 find_half_from_exp <- function(mdl) {
+  mdl |> 
+    rename(k = estimate, std_k = std.error) |> 
+    mutate(
+      t_half = -log(0.5) / k,
+      std_t_half = t_half * std_k / k
+    ) |> 
+    relocate(std_k, .after = k)
+}
+
+
+fit_exp_b <- function(dat) {
+  dat |> 
+    select(time_point, condition, value) |> 
+    nest(data = c(time_point, value)) |> 
+    mutate(
+      fit = map(data, ~nls(value ~ (1 - b) * exp(-k * time_point) + b, data = .x, start = list(k = 0.4, b = 0.1))),
+      tidied = map(fit, tidy)
+    ) |> 
+    select(-c(data)) |> 
+    unnest(tidied)
+}
+
+find_half_from_exp_b <- function(mdl) {
   mdl |> 
     rename(val = estimate, std = std.error) |> 
     pivot_wider(id_cols = condition, names_from = term, values_from = c(val, std)) |> 

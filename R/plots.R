@@ -30,13 +30,15 @@ scientific_10 <- function(v, limit = 3.01) {
 }
 
 
-plot_time_course <- function(dat, mdl, log_data = FALSE) {
+plot_time_course <- function(dat, mdl, log_data = FALSE, time_limit = c(0, 8)) {
   if(log_data) {
     dat <- dat |> 
       mutate(value = log2(value))
     ylab <- expression(log[2]~Normalised~intensity)
+    ylim <- c(NA_real_, NA_real_)
   } else {
     ylab <- "Normalised intensity"
+    ylim <- c(0, NA)
   }
 
   curves <- mdl |> 
@@ -44,7 +46,7 @@ plot_time_course <- function(dat, mdl, log_data = FALSE) {
     distinct() |> 
     group_split(condition) |> 
     map(function(w) {
-      d <- tibble(time_point = seq(0, 8, 0.1))
+      d <- tibble(time_point = seq(time_limit[1], time_limit[2], 0.1))
       y <- predict(w$fit[[1]], d)
       tibble(
         condition = w$condition,
@@ -68,6 +70,7 @@ plot_time_course <- function(dat, mdl, log_data = FALSE) {
     facet_wrap(~ condition, ncol = 1) +
     scale_colour_manual(values = okabe_ito_palette) +
     scale_x_continuous(breaks = c(0, 1, 2, 4, 6, 8)) +
+    ylim(ylim) +
     labs(x = "Time point (h)", y = ylab)
 }
 
@@ -86,7 +89,7 @@ plot_tukey <- function(tukey, p_limit = 0.05) {
 plot_compare <- function(cmp, fdr_limit = 0.05) {
   cmp |> 
     mutate(sig = p_adj < fdr_limit) |> 
-    ggplot(aes(x = time_point, y = slope, ymin = conf.low, ymax = conf.high, colour = sig)) +
+    ggplot(aes(x = time_point, y = estimate, ymin = conf.low, ymax = conf.high, colour = sig)) +
     th +
     theme(legend.position = "none") +
     geom_hline(yintercept = 0, linetype = "dashed", linewidth = 0.5) +
